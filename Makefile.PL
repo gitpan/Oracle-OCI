@@ -12,7 +12,7 @@ use Getopt::Long;
 use Config;
 
 use C::Scan 0.71;	# needed by h2xs
-use DBD::Oracle 1.07;
+use DBD::Oracle 1.10;
 
 use lib 'lib';
 
@@ -33,7 +33,7 @@ $::opt_g &&= '-g';  # convert to actual string
  
 %opts = (
     NAME	=> 'Oracle::OCI',
-    VERSION	=> '0.04',
+    VERSION	=> '0.05',
     NEEDS_LINKING => 0,
     OBJECT	=> [],
     PREREQ_PM	=> { 'C::Scan' => 0.71 },

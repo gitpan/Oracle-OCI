@@ -575,6 +575,9 @@ if( ! $opt_X ){  # use XS, unless it was disabled
 	'add_cppflags' => $addflags, 'c_styles' => [qw(C++ C9X)];
       $c->set('includeDirs' => [@dirs_h,"$Config::Config{archlib}/CORE"]);
 
+      # force addition of __restrict into keywords (asap)
+      $c->get('keywords')->{'__restrict'} = 1;
+
       push @$fdecls_parsed, @{ $c->get('parsed_fdecls') };
       push(@$fdecls, @{$c->get('fdecls')});
 

@@ -2,7 +2,7 @@
 MODULE = Oracle::OCI            PACKAGE = Oracle::OCI
 
 BOOT:
-	Perl_require_pv("DBD::Oracle");
+	Perl_require_pv(aTHX_ "DBD::Oracle");
 	DBISTATE_INIT;
 	oci_util_init(DBIS);
 
@@ -71,35 +71,37 @@ OCIAttrGet(trgthndlp, trghndltyp, attributep_sv, sizep_sv, attrtype, errhp, ptr_
 	CODE:
 	{
 	ub4 b4_val = 0;
+	char *ptr;
 	STRLEN lna=0;
         ub4 sizep= SvIV(sizep_sv);
 	int debug = DBIS->debug;
 	switch (ptr_len) {
+	case  1: case  2: case  4:
 	case -1: case -2: case -4:
-	case 1: case 2: case 4:
 	    RETVAL = OCIAttrGet(trgthndlp, trghndltyp, (void*)&b4_val, 0, attrtype, errhp);
-	    switch (ptr_len) {
-	    case 1: case -1: sv_setiv(attributep_sv, (IV)*(ub1*)&b4_val); break;
-	    case 2: case -2: sv_setiv(attributep_sv, (IV)*(ub2*)&b4_val); break;
-	    case 4: case -4: sv_setiv(attributep_sv, (IV)*(ub4*)&b4_val); break;
+	    if (RETVAL==OCI_SUCCESS || RETVAL==OCI_SUCCESS_WITH_INFO) {
+		switch (ptr_len) {
+		case  1: sv_setiv(attributep_sv, (IV)*((ub1*)&b4_val)); break;
+		case -1: sv_setiv(attributep_sv, (IV)*((sb1*)&b4_val)); break;
+		case  2: sv_setiv(attributep_sv, (IV)*((ub2*)&b4_val)); break;
+		case -2: sv_setiv(attributep_sv, (IV)*((sb2*)&b4_val)); break;
+		case  4: sv_setiv(attributep_sv, (IV)*((ub4*)&b4_val)); break; /* XXX UV */
+		case -4: sv_setiv(attributep_sv, (IV)*((sb4*)&b4_val)); break;
+		}
 	    }
 	    break;
 	case 0:
-warn("'%.3s' %d %p",SvPVX(attributep_sv),sizep,SvPVX(attributep_sv));
-	    RETVAL = OCIAttrGet(trgthndlp, trghndltyp, SvPVX(attributep_sv), &sizep, attrtype, errhp);
-/* sizep gets set but nothing seems to be written into attributep_sv */
-warn("'%.3s' %d",SvPVX(attributep_sv),sizep);
-	    if (!SvREADONLY(sizep_sv)) {
-		sv_setiv(sizep_sv, sizep);
-		SvSETMAGIC(sizep_sv);
-	    }
-	    else {
-		SvCUR_set(attributep_sv, sizep);
-		*SvEND(attributep_sv) = '\0';
+	    RETVAL = OCIAttrGet(trgthndlp, trghndltyp, &ptr, &sizep, attrtype, errhp);
+	    if (RETVAL==OCI_SUCCESS || RETVAL==OCI_SUCCESS_WITH_INFO) {
+		sv_setpvn(attributep_sv, ptr, sizep);
+		if (!SvREADONLY(sizep_sv)) {
+		    sv_setiv(sizep_sv, sizep);
+		    SvSETMAGIC(sizep_sv); /* redundant */
+		}
 	    }
 	    break;
 	default:
-		croak("bad len %d",ptr_len);
+	    croak("bad ptr_len %d",ptr_len);
 	}
         if (RETVAL != OCI_SUCCESS || debug) {
 	    warn("    OCIAttrGet = '%s'", SvPV(attributep_sv,lna));

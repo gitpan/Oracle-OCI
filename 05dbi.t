@@ -146,27 +146,41 @@ my $parmp = bless \$parmp_int => 'OCIParamPtr';
 ok OCIAttrGet($parmp, OCI_DTYPE_PARAM, my $numcols=0, 0, OCI_ATTR_NUM_COLS, $dbh, 2), 0;
 ok $numcols, 2;
 
-DBI->trace(1);
 # column list of the table
 ok OCIAttrGet($parmp, OCI_DTYPE_PARAM, my $collst_int=0, 0, OCI_ATTR_LIST_COLUMNS, $dbh, 4), 0;
 my $collst = bless \$collst_int => 'OCIParamPtr';
 
+my $col_ok = [ undef,
+	{ 'OCI_ATTR_NAME' => 'IDX', 'OCI_ATTR_DATA_TYPE' => 2,	},
+	{ 'OCI_ATTR_NAME' => 'LNG', 'OCI_ATTR_DATA_TYPE' => 112,	},
+];
+
+my $errstr;
 foreach my $colnum (1..$numcols) {
     my $col_parmdp_int = 0;
     my $col_parmdp = bless \$col_parmdp_int => 'OCIParamPtr';
     ok OCIParamGet($collst, OCI_DTYPE_PARAM, $dbh, $col_parmdp, $colnum), 0;
 
-    my $name;
+    my $name='';
     ok $status=OCIAttrGet($col_parmdp, OCI_DTYPE_PARAM, oci_buf_len($name, 30), OCI_ATTR_NAME, $dbh, 0), 0;
-    my $errstr = get_oci_error($dbh, $status, 'OCIAttrGet');
+    $errstr = get_oci_error($dbh, $status, 'OCIAttrGet');
     warn $errstr if $status != OCI_SUCCESS;
-    warn "COL $colnum NAME = '$name'";
+    print "COL $colnum NAME = '$name'\n";
+    ok $name, $col_ok->[$colnum]{'OCI_ATTR_NAME'};
+
+    my $col_typecode = -99;
+    ok $status=OCIAttrGet($col_parmdp, OCI_DTYPE_PARAM, $col_typecode, 2, OCI_ATTR_DATA_TYPE, $dbh, 2), 0;
+    $errstr = get_oci_error($dbh, $status, 'OCIAttrGet');
+    warn $errstr if $status != OCI_SUCCESS;
+    print "COL $colnum TYPE = '$col_typecode'\n";
+    ok $col_typecode, $col_ok->[$colnum]{'OCI_ATTR_DATA_TYPE'};
+
 }
 DBI->trace(0);
 
 
 
-BEGIN { plan tests => 50, onfail => sub { warn Dumper(\@_) } }
+BEGIN { plan tests => 60, onfail => sub { warn Dumper(\@_) } }
 
 END {
     if ($dbh && $dbh->ping) {

@@ -122,16 +122,17 @@ get_oci_error(OCIError *errhp, sword status, char *what, int debug)
 void *
 get_oci_handle(SV *h, int handle_type, int flags) {
     STRLEN lna;
-    void *(*hook)_((imp_xxh_t *imp_xxh, int handle_type, int flags));
+    typedef void *(*hook_type)_((imp_xxh_t *imp_xxh, int handle_type, int flags));
+    hook_type hook;
     /* D_imp_xxh(h); */
     imp_xxh_t *imp_xxh;
     if (DBIS->debug)
 	warn("    get_oci_handle(%s,%d,%d)", SvPV(h,lna), handle_type, flags);
     imp_xxh = (imp_xxh_t*)(DBIh_COM(h));
     if (DBIc_TYPE(imp_xxh) == DBIt_ST)
-	hook = (void*)((imp_sth_t*)imp_xxh)->get_oci_handle;
+	hook = (hook_type)((imp_sth_t*)imp_xxh)->get_oci_handle;
     else if (DBIc_TYPE(imp_xxh) == DBIt_DB)
-	hook = (void*)((imp_dbh_t*)imp_xxh)->get_oci_handle;
+	hook = (hook_type)((imp_dbh_t*)imp_xxh)->get_oci_handle;
     else croak("Can't get oci handle type %d from %s. Unsupported DBI handle type",
 	    handle_type, SvPV(h,lna));
     return hook(imp_xxh, handle_type, flags);

@@ -12,7 +12,7 @@ use Data::Dumper;
 use ExtUtils::Manifest qw(manicopy);
 
 use DBI;
-use DBD::Oracle	1.07;
+use DBD::Oracle	1.10;
 use C::Scan 	0.74;
 
 $| = 1;
@@ -74,7 +74,6 @@ my %config = (
 	Memory		=> "?",
 	Message		=> "?",
 	MultiByte	=> "?",
-	Number		=> "?",
 	Object		=> "?",
 	Pickler		=> "?",
 	Raw		=> "?",
@@ -99,7 +98,9 @@ my %config = (
 	StmtBindByName	=> "not in some libs, superceeded by OCIBindByName",
 	TypeArrayByRef	=> "?",
 	EnvCallback	=> "?",
-	SharedLibInit	=> "uses 'dvoid *argv[]' type that we've not supported yet"
+	SharedLibInit	=> "uses 'dvoid *argv[]' type that we've not supported yet",
+	'_ORACLE'	=> "empty define - used to prevent multiple #includes",
+	'_FLAGS'	=> "empty define - used to prevent multiple #includes",
     } } ],
 
     # ---	Link-time configuration:
@@ -137,7 +138,11 @@ my $oci_hdr = "$demodir/oci.h";
 -e $oci_hdr or croak "Error:  hit by a missing oci.h";
 -r _        or croak "Error:  unreadable $oci_hdr";
 
-my @ora_dirs = ($demodir, "$orahome/network/public", "$orahome/plsql/public");
+my @ora_dirs = ($demodir,
+	"$orahome/rdbms/public",
+	"$orahome/network/public",
+	"$orahome/plsql/public",
+);
 
 
 ############################################################################

@@ -1,5 +1,7 @@
 OCIRaw *		T_PTROBJ
 OCIRef *		T_PTROBJ
+OCITrans *		T_PTROBJ
+OCIType *		T_PTROBJ
 int *			T_PTROBJ
 void *			T_PTROBJ
 sb1			T_IV

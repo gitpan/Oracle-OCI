@@ -83,20 +83,31 @@ Regards,
 Tim.
 
 
-Changes in 0.05    July 20th 2001
+Changes in 0.05    August 31st 2001
+
+  Requires DBD::Oracle >= 1.10.
+  Added OCIType* and OCITrans* to extra.typemap thanks to Michael Fox.
+  Added rdbms/public to in oci_dirs boot thanks to Michael Fox.
+  Taught C::Scan to ignore __restricted in header files.
+  Excluded OCI_ORACLE and OCI_FLAGS #defines (as they have no value).
+  More robust linking thanks to Stephen Clouse.
+  Finally got OCIAttrGet to do-the-right-thing!
+  See (basic) schema describe example in t/05dbi.t.
+
+Changes in 0.04    July 20th 2001
 
   Improved pointer conversion logic
   Improved OCIAttrGet logic
   Almost working OCIDescribeAny code :)
 
-Changes in 0.04    July 7th 2001
+Changes in 0.03    July 7th 2001
 
   This is the first really useful release...
   Integration with the DBI (handles and tracing).
   Implemented oci_buf_len() entanglement function.
   Many other internal enhancements.
 
-Changes in 0.03
+Changes in 0.02
 
   Fixed up to cope with more Oracle version variants.
   Fixed support for enum types.
