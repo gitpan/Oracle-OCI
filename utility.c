@@ -44,7 +44,7 @@ oci_buf_getmaxlen(IV svptr_iv, SV* len_sv)
     STRLEN lna;
     SV *buf_sv = (SV*)svptr_iv;
     if (DBIS->debug)
-	warn("    oci_buf_getmaxlen of '%s'=%d", SvPV(buf_sv,lna), SvLEN(buf_sv));
+	warn("    oci_buf_getmaxlen 0x%p of '%s'=%d", buf_sv, SvPV(buf_sv,lna), SvLEN(buf_sv));
     sv_setiv(len_sv, SvLEN(buf_sv));
     return -1;
 }
@@ -55,10 +55,11 @@ oci_buf_setcurlen(IV svptr_iv, SV* len_sv)
     SV *buf_sv = (SV*)svptr_iv;
     IV len = SvIV(len_sv);
     if (DBIS->debug)
-	warn("    oci_buf_setcurlen to %d (max %d)", len, SvLEN(buf_sv));
+	warn("    oci_buf_setcurlen 0x%p to %d (max %d)", buf_sv, len, SvLEN(buf_sv));
     SvGROW(buf_sv, len+1/*null*/);	/* just in case */
     SvCUR_set(buf_sv, len);
     *SvEND(buf_sv) = '\0';
+    sv_unmagic(buf_sv, 'U');	/* set magic is one-shot only */
     return -1;
 }
 
@@ -126,7 +127,7 @@ get_oci_handle(SV *h, int handle_type, int flags) {
     hook_type hook;
     /* D_imp_xxh(h); */
     imp_xxh_t *imp_xxh;
-    if (DBIS->debug)
+    if (flags & 1)
 	warn("    get_oci_handle(%s,%d,%d)", SvPV(h,lna), handle_type, flags);
     imp_xxh = (imp_xxh_t*)(DBIh_COM(h));
     if (DBIc_TYPE(imp_xxh) == DBIt_ST)
@@ -147,7 +148,7 @@ ora_getptr_generic(SV *arg, char *var, char *type, char *func) {
     int debug = DBIS->debug;
 
     if (debug)
-	warn("    %s %s: converting %s to %s", func, var, SvPV(arg,lna), type);
+	warn("    %s %s: converting %s to %s", func, var, neatsvpv(arg,0), type);
 
     if (SvROK(arg) && SvTYPE(SvRV(arg))==SVt_PVHV && SvMAGICAL(SvRV(arg))) {
 	if (strEQ(type,"OCIErrorPtr"))	return get_oci_handle(arg, OCI_HTYPE_ERROR, 0);

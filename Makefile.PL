@@ -33,7 +33,7 @@ $::opt_g &&= '-g';  # convert to actual string
  
 %opts = (
     NAME	=> 'Oracle::OCI',
-    VERSION	=> '0.05',
+    VERSION	=> '0.06',
     NEEDS_LINKING => 0,
     OBJECT	=> [],
     PREREQ_PM	=> { 'C::Scan' => 0.71 },

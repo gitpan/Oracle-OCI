@@ -1,10 +1,14 @@
+#!perl -w
 
 use strict;
 use Test;
 use Data::Dumper;
 
-use DBI;
+use DBI qw(neat);
 use Oracle::OCI qw(:all);
+
+$|=1; 
+$^W=1; 
 
 $ENV{ORACLE_SID} ||= 'ORCL'; # not sure is TWO_TASK will work, try it :)
 my $dbuser = $ENV{ORACLE_USERID} || 'scott/tiger';
@@ -21,7 +25,7 @@ sub dvoid_p_str {
 
 # --- connected using DBI ---
 
-my $dbh = DBI->connect('dbi:Oracle:', $user, $pass);
+my $dbh = DBI->connect('dbi:Oracle:', $user, $pass, { AutoCommit => 0 });
 ok $dbh;
 
 my $status;
@@ -32,7 +36,7 @@ ok $status=OCIAttrGet(get_oci_handle($dbh, OCI_HTYPE_ENV), my $cache_max_size, 0
 print "OCI_ATTR_CACHE_MAX_SIZE='$cache_max_size' from DBD::Oracle connection\n";
 
 my $table = "oracle_oci_test__drop_me";
-my $create_table = qq{create table $table ( idx integer, lng CLOB )};
+my $create_table = qq{create table $table ( idx integer not null, lng CLOB )};
 $dbh->do($create_table);
 if ($dbh->err && $dbh->err==955) {
     $dbh->do(qq{ drop table $table });
@@ -52,7 +56,7 @@ ok my $lob_locator = get_lob_locator();
 ok $$lob_locator;
 
 
-# --- get the length, trim it, get the length again ---
+print " --- get the length, trim it, get the length again ---\n";
 
 ok OCILobGetLength($dbh, $dbh, $lob_locator, my $lob_len=0), 0;
 ok $lob_len, length($LOB);
@@ -65,7 +69,7 @@ ok $lob_len, length($LOB)-5;
 substr($LOB, -5) = ''; # adjust master copy to match
 
 
-# --- now read a chunk in the middle of the LOB ---
+print " --- now read a chunk in the middle of the LOB ---\n";
 
 my $lob_buf='';
 my $amtp = 5;
@@ -77,7 +81,7 @@ ok $lob_buf;
 print "OCILobRead='$lob_buf', amtp=$amtp\n";
 ok $lob_buf, ' 0002';
 
-# --- now read whole lob in chunks ---
+print " --- now read whole lob in chunks ---\n";
 
 OCILobEnableBuffering($dbh, $dbh, $lob_locator); # optional
 
@@ -93,9 +97,9 @@ for ( my $offset=1; $chunk == 5 ; $offset += $chunk ) {
 }
 ok $lob_read_buf, $LOB;
 
-# --- now edit a lob ---
+print " --- now edit a lob ---\n";
 
-#DBI->trace(9);
+# DBI->trace(9);
 $chunk = 5;
 for ( my $offset=1; $chunk == 5 ; $offset += $chunk ) {
     ok OCILobRead($dbh, $dbh, $lob_locator,
@@ -104,14 +108,14 @@ for ( my $offset=1; $chunk == 5 ; $offset += $chunk ) {
 		0,0, 0,0 ), 0;
     $lob_buf =~ s/0/o/g;
     ok $status=OCILobWrite($dbh, $dbh, $lob_locator,
-		$chunk, $offset,
+		length($lob_buf), $offset,
 		oci_buf_len($lob_buf),
 		OCI_ONE_PIECE, 0,0, 0, 1 ), 0 if $chunk;
     warn get_oci_error($dbh, $status, 'OCILobWrite') if $status != OCI_SUCCESS;
 }
 
 # XXX for some reason the above doesn't work. OCILobWrite gets called with
-# the specified values and returns OCI_SUCCESS. Odd.
+# the specified values and returns OCI_SUCCESS, but the LOB isn't changed. Odd.
 if (1) {
 ok OCITransCommit($dbh, $dbh, OCI_DEFAULT), 0;
 $lob_locator = get_lob_locator();
@@ -120,17 +124,20 @@ else {
 ok 1;
 }
 
-# --- re-read the complete lob ---
+print " --- re-read the complete lob ---\n";
 
+my $lob_buf2;
 ok OCILobRead($dbh, $dbh, $lob_locator,
 	    $chunk=200, 1,
-	    oci_buf_len($lob_buf, 200, \$chunk),
+	    oci_buf_len($lob_buf2, 200, \$chunk),
 	    0,0, 0,0 ), 0;
-print "$lob_buf\n";
+print "$lob_buf2\n";
 # XXX
 
+DBI->trace(0);
+#die;
 
-# --- test OCIDescribeAny ---
+print " --- test OCIDescribeAny ---\n";
 
 my $env = get_oci_handle($dbh, OCI_HTYPE_ENV);
 ok OCIHandleAlloc($env, my $dschp, OCI_HTYPE_DESCRIBE, 0, 0), 0;
@@ -139,21 +146,46 @@ bless $dschp => 'OCIDescribePtr';
 ok OCIDescribeAny($dbh, $dbh, oci_buf_len($table), OCI_OTYPE_NAME, 1, OCI_PTYPE_TABLE, $dschp), 0;
 
 # get the parameter descriptor
-ok OCIAttrGet($dschp, OCI_HTYPE_DESCRIBE, my $parmp_int=0, 0, OCI_ATTR_PARAM, $dbh, 4), 0;
-my $parmp = bless \$parmp_int => 'OCIParamPtr';
+ok OCIAttrGet($dschp, OCI_HTYPE_DESCRIBE, my $parmp, 0, OCI_ATTR_PARAM, $dbh, 'OCIParamPtr'), 0;
 
 # number of columns
-ok OCIAttrGet($parmp, OCI_DTYPE_PARAM, my $numcols=0, 0, OCI_ATTR_NUM_COLS, $dbh, 2), 0;
+ok OCIAttrGet($parmp, OCI_DTYPE_PARAM, my $numcols, 0, OCI_ATTR_NUM_COLS, $dbh, 2), 0;
 ok $numcols, 2;
 
 # column list of the table
-ok OCIAttrGet($parmp, OCI_DTYPE_PARAM, my $collst_int=0, 0, OCI_ATTR_LIST_COLUMNS, $dbh, 4), 0;
-my $collst = bless \$collst_int => 'OCIParamPtr';
+ok OCIAttrGet($parmp, OCI_DTYPE_PARAM, my $collst, 0, OCI_ATTR_LIST_COLUMNS, $dbh, 'OCIParamPtr'), 0;
 
-my $col_ok = [ undef,
-	{ 'OCI_ATTR_NAME' => 'IDX', 'OCI_ATTR_DATA_TYPE' => 2,	},
-	{ 'OCI_ATTR_NAME' => 'LNG', 'OCI_ATTR_DATA_TYPE' => 112,	},
-];
+my $describe_attr = {
+    OCI_ATTR_DATA_SIZE	=>  2,
+    OCI_ATTR_DATA_TYPE	=>  2,
+    OCI_ATTR_IS_NULL	=>  1,
+    OCI_ATTR_NAME	=>  0,
+    OCI_ATTR_PRECISION	=>  1,
+    OCI_ATTR_SCALE	=> -1,
+    OCI_ATTR_TYPE_NAME	=>  0,
+};
+
+my @describe_expected = (
+    undef, # no column zero
+    {
+    OCI_ATTR_DATA_SIZE	=>  22,
+    OCI_ATTR_DATA_TYPE	=>  2,
+    OCI_ATTR_IS_NULL	=>  0,
+    OCI_ATTR_NAME	=>  'IDX',
+    OCI_ATTR_PRECISION	=>  38,
+    OCI_ATTR_SCALE	=>  0,
+    OCI_ATTR_TYPE_NAME	=>  undef,
+    },
+    {
+    OCI_ATTR_DATA_SIZE	=>  86,
+    OCI_ATTR_DATA_TYPE	=>  112,
+    OCI_ATTR_IS_NULL	=>  1,
+    OCI_ATTR_NAME	=>  'LNG',
+    OCI_ATTR_PRECISION	=>  0,
+    OCI_ATTR_SCALE	=>  0,
+    OCI_ATTR_TYPE_NAME	=>  undef,
+    },
+);
 
 my $errstr;
 foreach my $colnum (1..$numcols) {
@@ -161,26 +193,20 @@ foreach my $colnum (1..$numcols) {
     my $col_parmdp = bless \$col_parmdp_int => 'OCIParamPtr';
     ok OCIParamGet($collst, OCI_DTYPE_PARAM, $dbh, $col_parmdp, $colnum), 0;
 
-    my $name='';
-    ok $status=OCIAttrGet($col_parmdp, OCI_DTYPE_PARAM, oci_buf_len($name, 30), OCI_ATTR_NAME, $dbh, 0), 0;
-    $errstr = get_oci_error($dbh, $status, 'OCIAttrGet');
-    warn $errstr if $status != OCI_SUCCESS;
-    print "COL $colnum NAME = '$name'\n";
-    ok $name, $col_ok->[$colnum]{'OCI_ATTR_NAME'};
-
-    my $col_typecode = -99;
-    ok $status=OCIAttrGet($col_parmdp, OCI_DTYPE_PARAM, $col_typecode, 2, OCI_ATTR_DATA_TYPE, $dbh, 2), 0;
-    $errstr = get_oci_error($dbh, $status, 'OCIAttrGet');
-    warn $errstr if $status != OCI_SUCCESS;
-    print "COL $colnum TYPE = '$col_typecode'\n";
-    ok $col_typecode, $col_ok->[$colnum]{'OCI_ATTR_DATA_TYPE'};
-
+    foreach my $attr (sort keys %$describe_attr) {
+	my $type = $describe_attr->{$attr};
+	no strict 'refs';
+	ok $status = OCIAttrGet($col_parmdp, OCI_DTYPE_PARAM, oci_buf_len(my $tmp, 90), &$attr, $dbh, $type), 0;
+	warn "$attr: ".get_oci_error($dbh, $status, 'OCIAttrGet') if $status;
+	printf "%-20s: %s\n", $attr, neat($tmp);
+	ok $tmp, $describe_expected[$colnum]->{$attr};
+    }
 }
 DBI->trace(0);
 
 
 
-BEGIN { plan tests => 60, onfail => sub { warn Dumper(\@_) } }
+BEGIN { plan tests => 80, onfail => sub { warn Dumper(\@_) } }
 
 END {
     if ($dbh && $dbh->ping) {

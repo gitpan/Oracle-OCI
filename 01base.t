@@ -1,3 +1,4 @@
+#!perl -w
 
 use strict;
 use Test;
@@ -7,6 +8,8 @@ use DBI;
 
 use Oracle::OCI qw(:all);
 
+$|=1;
+$^W=1;
 $ENV{ORACLE_SID} ||= 'ORCL'; # not sure is TWO_TASK will work, try it :)
 my $dbuser = $ENV{ORACLE_USERID} || 'scott/tiger';
 
@@ -98,12 +101,23 @@ warn get_oci_error($errhp, $status) unless $status == OCI_SUCCESS;
 
 ok OCIAttrSet($$svchp, OCI_HTYPE_SVCCTX, $$authp, 0, OCI_ATTR_SESSION, $errhp), 0;
 
-# test connection by getting an attribute
+# --- test getting some attributes
+
+#	integer attribute
 ok $status=OCIAttrGet($$envhp, OCI_HTYPE_ENV, my $cache_max_size, 0, OCI_ATTR_CACHE_MAX_SIZE, $errhp, 4), 0;
 print "	OCI_ATTR_CACHE_MAX_SIZE='$cache_max_size' from Oracle::OCI connection\n";
+ok $cache_max_size > 1;
+
+#	pointer attribute
+ok $status=OCIAttrGet($$svrhp, OCI_HTYPE_SERVER, my $svrhp_envhp, 0, OCI_ATTR_ENV, $errhp, 'OCIEnvPtr'), 0;
+print "	OCI_ATTR_ENV='$svrhp_envhp'\n";
+ok ref($svrhp_envhp), 'OCIEnvPtr';
+ok $$envhp, $$svrhp_envhp;
+
+DBI->trace(0);
 
 
-BEGIN { plan tests => 35, onfail => sub { warn Dumper(\@_) } }
+BEGIN { plan tests => 39, onfail => sub { warn Dumper(\@_) } }
 
 
 __END__

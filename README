@@ -83,6 +83,11 @@ Regards,
 Tim.
 
 
+Changes in 0.06    August 31st 2001
+
+  OCIAttrGet can return a pre-blessed pointer ref if asked
+  Made OCIDescribeAny code in 05dbi.t more general.
+
 Changes in 0.05    August 31st 2001
 
   Requires DBD::Oracle >= 1.10.
