@@ -60,33 +60,51 @@ oci_buf_len(sv, len=-1, ref_len_sv=Nullsv)
 
 
 sword_status
-OCIAttrGet(trgthndlp, trghndltyp, attributep_sv, sizep_sv, attrtype, errhp)
+OCIAttrGet(trgthndlp, trghndltyp, attributep_sv, sizep_sv, attrtype, errhp, ptr_len)
         void *  trgthndlp
         ub4     trghndltyp
         SV *    attributep_sv
         SV *    sizep_sv
         ub4     attrtype
         OCIError *      errhp
+	int	ptr_len
 	CODE:
-        ub4 sizep=90;
-        char buf[99];
-        dvoid *attributep=buf;
+	{
+	ub4 b4_val = 0;
+	STRLEN lna=0;
+        ub4 sizep= SvIV(sizep_sv);
 	int debug = DBIS->debug;
-        buf[0]='\0';
-        RETVAL = OCIAttrGet(trgthndlp, trghndltyp, &attributep, &sizep, attrtype, errhp);
-	if (debug)
-	    warn("    OCIAttrGet attributep=%p (buf=%p) size=%d %s",
-			attributep,buf,sizep,oci_status_name(RETVAL));
-        if ((IV)attributep < 65000)	/* XXX TOTAL HACK XXX */
-             sv_setiv(attributep_sv, (IV)attributep);
-        else sv_setpvn(attributep_sv, (char*)attributep, sizep);
-        if (!SvREADONLY(sizep_sv))
-            sv_setiv(sizep_sv, sizep);
-	if (debug)
-	    warn("    OCIAttrGet attributep=%s %p %d",
-			SvPV(attributep_sv,sizep),attributep,sizep);
-        ST(0) = sv_newmortal();
-        if (RETVAL != OCI_SUCCESS /* || tracing enabled */) {
+	switch (ptr_len) {
+	case -1: case -2: case -4:
+	case 1: case 2: case 4:
+	    RETVAL = OCIAttrGet(trgthndlp, trghndltyp, (void*)&b4_val, 0, attrtype, errhp);
+	    switch (ptr_len) {
+	    case 1: case -1: sv_setiv(attributep_sv, (IV)*(ub1*)&b4_val); break;
+	    case 2: case -2: sv_setiv(attributep_sv, (IV)*(ub2*)&b4_val); break;
+	    case 4: case -4: sv_setiv(attributep_sv, (IV)*(ub4*)&b4_val); break;
+	    }
+	    break;
+	case 0:
+warn("'%.3s' %d %p",SvPVX(attributep_sv),sizep,SvPVX(attributep_sv));
+	    RETVAL = OCIAttrGet(trgthndlp, trghndltyp, SvPVX(attributep_sv), &sizep, attrtype, errhp);
+/* sizep gets set but nothing seems to be written into attributep_sv */
+warn("'%.3s' %d",SvPVX(attributep_sv),sizep);
+	    if (!SvREADONLY(sizep_sv)) {
+		sv_setiv(sizep_sv, sizep);
+		SvSETMAGIC(sizep_sv);
+	    }
+	    else {
+		SvCUR_set(attributep_sv, sizep);
+		*SvEND(attributep_sv) = '\0';
+	    }
+	    break;
+	default:
+		croak("bad len %d",ptr_len);
+	}
+        if (RETVAL != OCI_SUCCESS || debug) {
+	    warn("    OCIAttrGet = '%s'", SvPV(attributep_sv,lna));
             warn("    %s returned %s", "OCIAttrGet", oci_status_name(RETVAL));
         }
+        ST(0) = sv_newmortal();
         sv_setiv(ST(0), (IV)RETVAL);
+	}

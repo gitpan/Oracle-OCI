@@ -171,25 +171,35 @@ ora_getptr_generic(SV *arg, char *var, char *type, char *func) {
     }
 
     want_voidptr = ( *type=='v' && strEQ(type,"voidPtr") );
-    if (want_voidptr && SvPOK(arg) && !SvROK(arg) && !SvOBJECT(arg)) {
-	/* XXX HACK special case to simply passing a buffer, ie OCILobRead */
-	if (strEQ(var,"bufp") || strEQ(var,"attributep")) {
+    if (want_voidptr) {
+	if (SvPOK(arg) && !SvROK(arg) && !SvOBJECT(arg)) {
+	    /* XXX HACK special case to simply passing a buffer, ie OCILobRead */
+	    if (SvPOK(arg) && !SvNIOK(arg) /*|| strEQ(var,"bufp") || strEQ(var,"attributep")*/) {
+		if (debug)
+		    warn("    %s %s: passing as pointer to buffer", func, var);
+		return SvPV(arg,lna);
+	    }
+	    /* else just treat as pointer without type checking */
 	    if (debug)
-		warn("    %s %s: passing as pointer to buffer", func, var);
-	    return SvPV(arg,lna);
+		warn("    %s %s: passing as who knows what!", func, var);
+	    tmp = (SvROK(arg)) ? SvIV((SV*)SvRV(arg)) : SvIV(arg);
+	    return INT2PTR(void*, tmp);
 	}
-	/* else just treat as pointer without type checking */
-	if (debug)
-	    warn("    %s %s: passing as who knows what!", func, var);
-	tmp = (SvROK(arg)) ? SvIV((SV*)SvRV(arg)) : SvIV(arg);
-	return INT2PTR(void*, tmp);
-    }
 
-    if (want_voidptr && SvIOK(arg) && !SvROK(arg) && SvOBJECT(arg)) {
-	void *ptr = INT2PTR(void*, SvIV(arg));
-	if (debug)
-	    warn("    %s %s: passing as bare pointer 0x%p/%ld", func, var, ptr, ptr);
-	return ptr;
+	if (SvIOK(arg) && !SvROK(arg) && SvOBJECT(arg)) {
+	    void *ptr = INT2PTR(void*, SvIV(arg));
+	    if (debug)
+		warn("    %s %s: passing integer as bare pointer 0x%p/%ld", func, var, ptr, ptr);
+	    return ptr;
+	}
+
+	if (SvROK(arg) && SvOBJECT(SvRV(arg))) {
+	    IV tmp = SvIV((SV*)SvRV(arg));
+	    void *ptr = INT2PTR(void*,tmp);
+	    if (debug)
+		warn("    %s %s: passing as bare pointer 0x%p/%ld", func, var, ptr, ptr);
+	    return ptr;
+	}
     }
     if (0 && (!SvOK(arg) || (SvNIOK(arg) && SvIV(arg)==0))) {
 	return 0;

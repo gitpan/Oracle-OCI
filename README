@@ -83,6 +83,12 @@ Regards,
 Tim.
 
 
+Changes in 0.05    July 20th 2001
+
+  Improved pointer conversion logic
+  Improved OCIAttrGet logic
+  Almost working OCIDescribeAny code :)
+
 Changes in 0.04    July 7th 2001
 
   This is the first really useful release...

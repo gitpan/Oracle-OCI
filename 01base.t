@@ -99,7 +99,7 @@ warn get_oci_error($errhp, $status) unless $status == OCI_SUCCESS;
 ok OCIAttrSet($$svchp, OCI_HTYPE_SVCCTX, $$authp, 0, OCI_ATTR_SESSION, $errhp), 0;
 
 # test connection by getting an attribute
-ok $status=OCIAttrGet($$envhp, OCI_HTYPE_ENV, my $cache_max_size, 0, OCI_ATTR_CACHE_MAX_SIZE, $errhp), 0;
+ok $status=OCIAttrGet($$envhp, OCI_HTYPE_ENV, my $cache_max_size, 0, OCI_ATTR_CACHE_MAX_SIZE, $errhp, 4), 0;
 print "	OCI_ATTR_CACHE_MAX_SIZE='$cache_max_size' from Oracle::OCI connection\n";
 
 

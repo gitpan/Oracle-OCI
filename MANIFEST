@@ -3,6 +3,7 @@
 MANIFEST	This file
 Makefile.PL	doesn't do much right now
 README		Read it!
+README.build	Read it to troubleshoot build problems
 XSUB.h		Indirection hack to hook in utility.h
 boot		The master bootstrap and build script
 extra.typemap	typemap

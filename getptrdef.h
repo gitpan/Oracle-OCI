@@ -52,12 +52,14 @@
 #define ora_getptr_OCIThreadKeyDestFunc ora_getptr_generic
 #define ora_getptr_OCIThreadKeyPtr ora_getptr_generic
 #define ora_getptr_OCIThreadMutexPtr ora_getptr_generic
+#define ora_getptr_OCITransPtr ora_getptr_generic
 #define ora_getptr_OCITypeCodePtr ora_getptr_generic
 #define ora_getptr_OCITypeElemPtr ora_getptr_generic
 #define ora_getptr_OCITypeGetOpt ora_getptr_generic
 #define ora_getptr_OCITypeIterPtr ora_getptr_generic
 #define ora_getptr_OCITypeMethodPtr ora_getptr_generic
 #define ora_getptr_OCITypePtr ora_getptr_generic
+#define ora_getptr_OCIUcbPtr ora_getptr_generic
 #define ora_getptr_OCIUserCallback ora_getptr_generic
 #define ora_getptr_OCIUserCallbackPtr ora_getptr_generic
 #define ora_getptr_OCIWcharPtr ora_getptr_generic

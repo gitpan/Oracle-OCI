@@ -96,14 +96,18 @@ my %config = (
 	TypeArrayByName	=> "?",
 	StmtGetBindInfo	=> "?",
 	StmtBindByPos	=> "not in some libs, superceeded by OCIBindByPos",
+	StmtBindByName	=> "not in some libs, superceeded by OCIBindByName",
 	TypeArrayByRef	=> "?",
 	EnvCallback	=> "?",
+	SharedLibInit	=> "uses 'dvoid *argv[]' type that we've not supported yet"
     } } ],
 
     # ---	Link-time configuration:
     #	The contents of this string should be extracted from
     #	the generated Makefile of a *working* DBD::Oracle that
     #	has been *built recently on the same platform*:
+
+    LIBS => $::dbd_oracle_mm_opts->{LIBS},
 
     dynamic_lib => $::dbd_oracle_mm_opts->{dynamic_lib}
 	|| die "DBD::Oracle::mk module doesn't define dynamic_lib",
@@ -123,21 +127,17 @@ my %config = (
 
 my $orahome = $ENV{ORACLE_HOME}
 	or croak "Error:  hit by a missing ORACLE_HOME";
-
 -d $orahome  or croak "Error:  no such directory: $orahome";
 -r _ && -x _ or croak "Error:  bad mods on $orahome";
 
-my $oci_hdr = "$orahome/rdbms/demo/oci.h";
-
+my $demodir  = "$orahome/rdbms/demo";
+-d $demodir  or croak "Error:  no directory '$demodir'";
+-r _ && -x _ or croak "Error:  bad mods on '$demodir'";
+my $oci_hdr = "$demodir/oci.h";
 -e $oci_hdr or croak "Error:  hit by a missing oci.h";
 -r _        or croak "Error:  unreadable $oci_hdr";
 
-my $demodir = "$orahome/rdbms/demo";
-my $netdir  = "$orahome/network/public";
--d $demodir  or croak "Error:  no directory '$demodir'";
--r _ && -x _ or croak "Error:  bad mods on '$demodir'";
--d $netdir   or croak "Error:  no directory '$netdir'";
--r _ && -x _ or croak "Error:  bad mods on '$netdir'";
+my @ora_dirs = ($demodir, "$orahome/network/public", "$orahome/plsql/public");
 
 
 ############################################################################
@@ -161,7 +161,8 @@ my $skip_regex = '^OCI(?!' . join('|',@skip_list) . ')|^SQL';
 
 my @h2xsargz = (
     qw( ./h2xs -d -O -n Oracle::OCI ),
-    "-F '-I$demodir -I$netdir'",
+    "-F ".join(" ", map { "-I$_" } @ora_dirs),
+    "-I".join(",", @ora_dirs),
     "-E get_oci_error,get_oci_handle,oci_buf_len,OCIAttrGet",
     "-M '$skip_regex'",
     "-k -x $oci_hdr",
@@ -294,13 +295,16 @@ else {	# no symlinks, gotta copy the stuff
     }
     local $Data::Dumper::Terse = 1;
     my $dynamic_lib = Dumper($config{dynamic_lib});
+    my $libs = Dumper($config{LIBS});
+    my $ora_inc = join " ", map { "-I$_" } @ora_dirs;
     print $new_mk qq{
 	sub wmf_config {
 	    return {
-		INC	=> "-I\$ora_arch_dir -I\$dbi_arch_dir",
+		INC	=> "$ora_inc -I\$ora_arch_dir -I\$dbi_arch_dir",
 		OBJECT	=> q{\$(BASEEXT)\$(OBJ_EXT) utility.o},
 		TYPEMAPS => ['h2xs.typemap'], # ./typemap implicitly last
 		OPTIMIZE => '-g',
+		LIBS => $libs,
 		dynamic_lib => $dynamic_lib,
 	    };
 	}

@@ -1,0 +1,30 @@
+=head1 Troubleshooting the build process
+
+=head2 Error: invalid argument declaration
+
+For errors like:
+
+  Error: invalid argument declaration 'void *     argv[]' in OCI.xs, line 9507
+
+find the name of the relevant OCI function from the OCI.xs file
+and add that name to the 'oci_skip => ...' section of the boot script.
+Then rerun the boot script.
+
+Please report this back to oracle-oci@perl.org with full details.
+
+
+=head2 Error: 'OCI... *' not in typemap
+
+For errors like: 
+
+  Error: 'OCITrans *' not in typemap in OCI.xs, line 9604
+
+Try adding the missing type into the top of the extra.typemap file, like:
+
+  OCITrans *     T_PTROBJ
+
+Then rerun the boot script.
+
+Please report this back to oracle-oci@perl.org with full details.
+
+=cut
