@@ -41,3 +41,4 @@ void *ora_getptr_generic(SV *arg, char *var, char *type, char *func);
 #define ora_getptr_size_tPtr ora_getptr_generic
 #define ora_getptr_ub2Ptr ora_getptr_generic
 #define ora_getptr_ub4Ptr ora_getptr_generic
+#define ora_getptr_OCILobLocatorPtr ora_getptr_generic

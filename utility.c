@@ -5,6 +5,9 @@
 
 #include <oci.h>
 
+#include <Oracle.h>	/* DBD::Oracle */
+
+DBISTATE_DECLARE;
 
 char *
 oci_status_name(sword status)
@@ -28,7 +31,7 @@ oci_status_name(sword status)
 
 
 SV *
-oci_error_get(OCIError *errhp, SV *errstr_in, sword status, char *what, int debug)
+get_oci_error(OCIError *errhp, SV *errstr_in, sword status, char *what, int debug)
 {
     text errbuf[1024];
     ub4 recno = 0;
@@ -87,13 +90,42 @@ warn("[[%s]]",SvPV(errstr,PL_na));
 
 
 void *
+get_oci_handle(SV *h, int handle_type, int flags) {
+    STRLEN lna;
+    D_imp_xxh(h);
+    void *(*hook)_((imp_xxh_t *imp_xxh, int handle_type, int flags));
+    if (DBIc_TYPE(imp_xxh) == DBIt_ST)
+	hook = (void*)((imp_sth_t*)imp_xxh)->get_oci_handle;
+    else if (DBIc_TYPE(imp_xxh) == DBIt_DB)
+	hook = (void*)((imp_dbh_t*)imp_xxh)->get_oci_handle;
+    else croak("Can't get oci handle type %d from %s. Unsupported DBI handle type.",
+	    handle_type, SvPV(h,lna));
+    return hook(imp_xxh, handle_type, flags);
+}
+
+
+void *
 ora_getptr_generic(SV *arg, char *var, char *type, char *func) {
-    warn("%s: converting %s to %s", func, var, type);
+    STRLEN lna;
+    if (!DBIS) {
+	DBISTATE_INIT;
+    }
+    if (DBIS->debug)
+	warn("    %s: converting %s %s to %s", func, var, SvPV(arg,lna), type);
+    if (SvROK(arg) && SvTYPE(SvRV(arg))==SVt_PVHV && SvMAGICAL(SvRV(arg))) {
+	if (strEQ(type,"OCIErrorPtr"))	return get_oci_handle(arg, OCI_HTYPE_ERROR, 0);
+	if (strEQ(type,"OCISvcCtxPtr"))	return get_oci_handle(arg, OCI_HTYPE_SVCCTX, 0);
+	if (strEQ(type,"OCIEnvPtr"))	return get_oci_handle(arg, OCI_HTYPE_ENV, 0);
+	if (strEQ(type,"OCIServerPtr"))	return get_oci_handle(arg, OCI_HTYPE_SERVER, 0);
+	if (strEQ(type,"OCISessionPtr"))return get_oci_handle(arg, OCI_HTYPE_SESSION, 0);
+	if (strEQ(type,"OCIStmtPtr"))	return get_oci_handle(arg, OCI_HTYPE_STMT, 0);
+	croak("Can't get %s handle from %s for %s(%s)", type, SvPV(arg,lna), func, var);
+    }
     if (sv_derived_from(arg, type)) {
 	IV tmp = SvIV((SV*)SvRV(arg));
 	void *foo = INT2PTR(void*,tmp);
 	return foo;
     }
     else
-	croak("%s is not of type %s", var, type);
+	croak("%s is not of type %s (actually %s)", var, type, SvPV(arg,lna));
 }

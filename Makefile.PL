@@ -1,6 +1,6 @@
 # -*- perl -*-
 #
-# $Id: Makefile.PL,v 10.14 2000/06/11 02:27:27 timbo Exp $
+# $Id: Makefile.PL,v 1.1 2001/06/06 00:57:02 timbo Exp $
 #
 #  Copyright (c) 2001  Tim Bunce  England
 #
@@ -32,7 +32,7 @@ $::opt_g &&= '-g';  # convert to actual string
  
 %opts = (
     NAME	=> 'Oracle::OCI',
-    VERSION	=> '0.01',
+    VERSION	=> '0.02',
     NEEDS_LINKING => 0,
     OBJECT	=> [],
     PREREQ_PM	=> { 'C::Scan' => 0.71 },

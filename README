@@ -18,16 +18,15 @@ Oracle::OCI  --  a raw Oracle 8 OCI interface for Perl 5.
 
   This is very much an experimental alpha work-in-progress,
   but it works for me and the connect.t script connects just fine.
-  (Though in the future we'll use DBD::Oracle to do such mundane stuff.)
 
   You'll need perl 5.6, C::Scan 0.74 and, if you want to help,
   a willingness to dig in get your hands dirty in code.
 
-  If you've got all that, then edit the top of the 'boot' shell script
-  and run it. It'll write the Oracle::OCI extension into an Oracle/OCI
-  subdirectory, build it and test it for you. You may need to edit the
-  connect.t script to refer to a local Oracle instance and username and
-  password. It defaults to SID=ORCL and the Oracle demo user: scott/tiger.
+  Run the 'boot' perl script.  It'll write the Oracle::OCI extension
+  into an Oracle/OCI subdirectory, build it and test it for you. You
+  may need to edit the connect.t script to refer to a local Oracle
+  instance and username and password. It defaults to SID=ORCL and the
+  Oracle demo user: scott/tiger.
 
   (Ignore the Makefile.PL for this release.)
 

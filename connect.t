@@ -2,7 +2,10 @@
 use strict;
 use Test;
 use Data::Dumper;
-use Oracle::OCI;
+
+use DBI;
+
+use Oracle::OCI qw(:all);
 
 $ENV{ORACLE_SID} ||= 'ORCL'; # not sure is TWO_TASK will work, try it :)
 my $dbuser = $ENV{ORACLE_USERID} || 'scott/tiger';
@@ -65,10 +68,57 @@ warn "OCISessionBegin...";
 ok $status=OCISessionBegin($svchp, $errhp, $authp, OCI_CRED_RDBMS, OCI_DEFAULT), 0;
 
 warn "OCISessionBegin=$status\n";
-warn Oracle::OCI::oci_error_get($errhp, my $foo='', $status) unless $status == OCI_SUCCESS;
+warn get_oci_error($errhp, my $foo='', $status) unless $status == OCI_SUCCESS;
 
 ok OCIAttrSet($$svchp, OCI_HTYPE_SVCCTX, $$authp, 0, OCI_ATTR_SESSION, $errhp), 0;
 
-BEGIN { plan tests => 20, onfail => sub { warn Dumper(\@_) } }
+# test connection by getting an attribute
+ok $status=OCIAttrGet($$envhp, OCI_HTYPE_ENV, my $cache_max_size, 0, OCI_ATTR_CACHE_MAX_SIZE, $errhp), 0;
+warn "OCI_ATTR_CACHE_MAX_SIZE='$cache_max_size' from Oracle::OCI\n";
+
+# --- connected using DBI ---
+
+my $dbh = DBI->connect('dbi:Oracle:', $user, $pass);
+ok $dbh;
+
+# test ability to use DBI/DBD::Oracle handle
+# Note in this case we use both explicit and implicit conversion
+ok $status=OCIAttrGet(get_oci_handle($dbh, OCI_HTYPE_ENV), $cache_max_size, 0, OCI_ATTR_CACHE_MAX_SIZE, $dbh), 0;
+warn "OCI_ATTR_CACHE_MAX_SIZE='$cache_max_size' from DBD::Oracle\n";
+
+my $table = 'oracle_oci_test__drop_me';
+my $create_table = qq{create table $table ( idx integer, lng CLOB )};
+$dbh->do($create_table);
+if ($dbh->err && $dbh->err==955) {
+    $dbh->do(qq{ drop table $table });
+    warn "Unexpectedly had to drop old test table '$table'\n" unless $dbh->err;
+    $dbh->do($create_table);
+}
+$dbh->do("insert into $table values (?, ?)", undef, 1, "BLOB");
+my $lob_locator = $dbh->selectrow_array(qq{
+	select lng from $table for update
+    }, { ora_auto_lob=>0 });
+
+ok OCILobGetLength($dbh, $dbh, $lob_locator, my $lob_len=0), 0;
+warn "OCILobGetLength=$lob_len";
+
+ok OCILobTrim($dbh, $dbh, $lob_locator, 2), 0;
+
+ok OCILobGetLength($dbh, $dbh, $lob_locator, my $lob_len=0), 0;
+warn "OCILobGetLength=$lob_len";
+
+
+
+# --- connected now ---
+
+if (0) {
+my $external_name = "-" x 30;
+ok OCIAttrGet($$svrhp, OCI_HTYPE_SERVER, $external_name, 0, OCI_ATTR_INTERNAL_NAME, $errhp), 0;
+warn "OCI_ATTR_EXTERNAL_NAME='$external_name'\n";
+}
+
+BEGIN { plan tests => 26, onfail => sub { warn Dumper(\@_) } }
+
+END { $dbh->do("drop table $table") if $dbh && $dbh->ping; }
 
 __END__
