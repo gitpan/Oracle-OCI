@@ -1,0 +1,11 @@
+MANIFEST	This file
+Makefile.PL	doesn't do much right now
+README		Read it!
+XSUB.h		Indirection hack to hook in utility.h
+boot		The master bootstrap and build script
+connect.t	test script
+extra.typemap	typemap
+extra.xsh	xsubpp include file
+h2xs		custom version of h2sx
+utility.c	assorted extra C functions
+utility.h	header file, you guessed

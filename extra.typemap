@@ -1,0 +1,16 @@
+OCIRaw *		T_PTROBJ
+OCIRef *		T_PTROBJ
+int *			T_PTROBJ
+sword_status		T_SWORD_STATUS
+#############################################################################
+INPUT
+T_PTROBJ
+	$var = ora_getptr_${ntype}($arg, \"${var}\", \"${ntype}\", \"${func_name}\")
+OUTPUT
+T_PTR
+	if ($arg && !SvREADONLY($arg)) sv_setiv($arg, (IV)$var);
+T_SWORD_STATUS
+	if ($var != OCI_SUCCESS /* || tracing enabled */) {
+	    warn("    %s returned %s", \"${func_name}\", oci_status_name($var));
+	}
+	sv_setiv($arg, (IV)$var);

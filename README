@@ -1,0 +1,60 @@
+
+Oracle::OCI  --  a raw Oracle 8 OCI interface for Perl 5.
+
+  Copyright (c) 2001 Tim Bunce, England.
+
+  You may distribute under the terms of either the GNU General Public
+  License or the Artistic License, as specified in the Perl README file,
+  with the exception that it cannot be placed on a CD-ROM or similar media
+  for commercial distribution without the prior approval of the author.
+
+  PLEASE READ THE ENTIRE README FILE CAREFULLY !
+
+
+*** QUICK START GUIDE:
+
+  This is not the Oracle::OCI module! This is a chunk of code that writes
+  the Oracle::OCI module dynamically by reading the Oracle header files!
+
+  This is very much an experimental alpha work-in-progress,
+  but it works for me and the connect.t script connects just fine.
+  (Though in the future we'll use DBD::Oracle to do such mundane stuff.)
+
+  You'll need perl 5.6, C::Scan 0.74 and, if you want to help,
+  a willingness to dig in get your hands dirty in code.
+
+  If you've got all that, then edit the top of the 'boot' shell script
+  and run it. It'll write the Oracle::OCI extension into an Oracle/OCI
+  subdirectory, build it and test it for you. You may need to edit the
+  connect.t script to refer to a local Oracle instance and username and
+  password. It defaults to SID=ORCL and the Oracle demo user: scott/tiger.
+
+  (Ignore the Makefile.PL for this release.)
+
+
+*** IF YOU HAVE PROBLEMS:
+
+Please fix them and send me the fix!
+
+
+*** HOW TO REPORT PROGRESS:
+
+Please don't report problems to the dbi-* mailing lists (nor to
+comp.lang.perl.* or perl5-porters). This software is supported via the
+oracle-oci@perl.org mailing list.  For more information and to keep
+informed about progress you can join the mailing list by sending a
+message to oracle-oci-help@perl.org.
+
+It is important to check that you are using the latest version before
+posting. If you're not then I'm *very* likely to simply say "upgrade to
+the latest". You would do yourself a favour by upgrading beforehand.
+
+
+*** And finally...
+
+Please remember that I'm _very_ busy. Try to help yourself first,
+then try to help me help you by following these guidelines carefully.
+And remember, please don't mail me directly - use the mailing list.
+
+Regards,
+Tim.
