@@ -33,7 +33,23 @@ Oracle::OCI  --  a raw Oracle 8 OCI interface for Perl 5.
 
 *** IF YOU HAVE PROBLEMS:
 
-Please fix them and send me the fix!
+Please fix them and send me the fix!   :-)
+
+If your xsubpp or your C compiler complains about some part of
+the generated .xs/.c file then you can usually just dodge the
+issue by adding the relevant function names into the list of
+excluded functions in the boot script. If you do this please
+send me the chunk of .xs/.c that caused the problem.
+
+Similarly, if your linker/loader complains about an unresolved symbol,
+try adding that name to the excluded functions (and, once again, please
+tell me about it).
+
+
+*** IF YOU DON'T HAVE PROBLEMS:
+
+Please try running 'boot -all' and let me know how that goes!
+(It'll generate big .xs and .c file, about 26,000 lines :)
 
 
 *** HOW TO REPORT PROGRESS:
@@ -41,19 +57,48 @@ Please fix them and send me the fix!
 Please don't report problems to the dbi-* mailing lists (nor to
 comp.lang.perl.* or perl5-porters). This software is supported via the
 oracle-oci@perl.org mailing list.  For more information and to keep
-informed about progress you can join the mailing list by sending a
-message to oracle-oci-help@perl.org.
+informed about progress you can get info on joining the mailing list by
+sending a message to oracle-oci-help@perl.org.
 
 It is important to check that you are using the latest version before
 posting. If you're not then I'm *very* likely to simply say "upgrade to
 the latest". You would do yourself a favour by upgrading beforehand.
 
 
+*** HOW TO HELP:
+
+Start trying to get real work done with Oracle::OCI.
+I'd love to have more useful chunks of working code.
+Perhaps Perl versions of some of the $ORACLE_HOME/rdbms/demo programs.
+I'd especially love someone to implement a recursive describe command!
+
+
 *** And finally...
 
-Please remember that I'm _very_ busy. Try to help yourself first,
-then try to help me help you by following these guidelines carefully.
+Please remember that I'm very busy. Try to help yourself first, then
+try to help me help you by following these guidelines carefully.
 And remember, please don't mail me directly - use the mailing list.
 
 Regards,
 Tim.
+
+
+Changes in 0.04    July 7th 2001
+
+  This is the first really useful release...
+  Integration with the DBI (handles and tracing).
+  Implemented oci_buf_len() entanglement function.
+  Many other internal enhancements.
+
+Changes in 0.03
+
+  Fixed up to cope with more Oracle version variants.
+  Fixed support for enum types.
+  Added macros for all types as of Oracle 8.0.5.
+  Added some general problem fixes to the README.
+  Added -all option to boot script to make *complete* API
+    (that's a 18,100 line .xs file and 24,696 line .c file :-)
+  Added special handling for void types
+    which greatly simplifies many more advanced tasks.
+
+End.

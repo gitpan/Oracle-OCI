@@ -1,6 +1,6 @@
 # -*- perl -*-
 #
-# $Id: Makefile.PL,v 1.1 2001/06/06 00:57:02 timbo Exp $
+# $Id: Makefile.PL,v 1.4 2001/07/08 02:08:38 timbo Exp $
 #
 #  Copyright (c) 2001  Tim Bunce  England
 #
@@ -12,6 +12,7 @@ use Getopt::Long;
 use Config;
 
 use C::Scan 0.71;	# needed by h2xs
+use DBD::Oracle 1.07;
 
 use lib 'lib';
 
@@ -32,7 +33,7 @@ $::opt_g &&= '-g';  # convert to actual string
  
 %opts = (
     NAME	=> 'Oracle::OCI',
-    VERSION	=> '0.02',
+    VERSION	=> '0.03',
     NEEDS_LINKING => 0,
     OBJECT	=> [],
     PREREQ_PM	=> { 'C::Scan' => 0.71 },
@@ -41,7 +42,7 @@ $::opt_g &&= '-g';  # convert to actual string
     clean => { FILES=> "Oracle/" },
     dist  => {
 	DIST_DEFAULT=> 'clean distcheck disttest ci tardist',
-	PREOP => '$(MAKE) -f Makefile.old distdir',
+	PREOP => '$(MAKE) -f Makefile distdir',
 	COMPRESS => 'gzip -v9', SUFFIX => 'gz',
     },
     ABSTRACT => 'Raw Oracle 8 OCI interface',

@@ -7,6 +7,7 @@ use Carp;
 use File::Path;
 use File::Copy;
 use File::Basename;
+use Getopt::Long;
 use Data::Dumper;
 use ExtUtils::Manifest qw(manicopy);
 
@@ -24,6 +25,11 @@ $| = 1;
 ########################################################################
 # Many thanks to Steven Lembark for starting this perl version
 
+my %opt;
+GetOptions(\%opt,
+	'all!',
+) or die "Invalid option\n";
+
 =head1 OCI::Oracle boot program
 
 =head2 User Configuration Section
@@ -33,24 +39,25 @@ deleting keys or values will cause the program to fail.
 
 =over 4
 
-=item h2xs_ignore
+=item oci_ignore
 
-List of subroutine name prefixes of subroutines to ignore (not include
-in Oracle::OCI).
+List of OCI subroutine name prefixes, without the leading 'OCI', of
+subroutines to ignore (that is, to not include in Oracle::OCI).
 
 Most are skipped to save time in the edit-build-test-edit loop.
 A few are skipped to avoid addressing less important implementation issues.
 
 =cut 
 
+use vars qw($dbd_oracle_mm_opts);
 require auto::DBD::Oracle::mk;	# defined $dbd_oracle_mm_opts and $dbd_oracle_mm_self
 
 my %config = (
 
     # note that removing entries from here to enable them,
-    # may also require adding new '#define' lines into utility.h
+    # may also require adding new '#define' lines into getptrdef.h
 
-    h2xs_ignore => [ sort keys %{ {
+    oci_ignore => [ sort keys %{ {
 	AQ		=> "?",
 	Bind		=> "?",
 	Cache		=> "?",
@@ -79,11 +86,16 @@ my %config = (
 	Thread		=> "?",
 	Type		=> "?",
 	WideChar	=> "?",
+	_NLS_		=> "OCI_NLS_* constants",
+	_FNCODE_	=> "OCI_FNCODE_* constants",
+    } } ],
 
+    oci_skip => [ sort keys %{ {
 	# excluded for special reasons
 	AttrGet		=> "custom version in extra.xsh",
 	TypeArrayByName	=> "?",
 	StmtGetBindInfo	=> "?",
+	StmtBindByPos	=> "not in some libs, superceeded by OCIBindByPos",
 	TypeArrayByRef	=> "?",
 	EnvCallback	=> "?",
     } } ],
@@ -142,12 +154,15 @@ move('Oracle'=>'Oracle.prev')	if -d 'Oracle';
 
 # build and execute h2xs command
 
-my $skip_regex = '^OCI(?!' . join('|',@{$config{h2xs_ignore}}) . ')';
+$config{oci_ignore} = [] if $opt{all};
+
+my @skip_list  = sort (@{$config{oci_ignore}}, @{$config{oci_skip}});
+my $skip_regex = '^OCI(?!' . join('|',@skip_list) . ')|^SQL';
 
 my @h2xsargz = (
     qw( ./h2xs -d -O -n Oracle::OCI ),
     "-F '-I$demodir -I$netdir'",
-    "-E get_oci_error,get_oci_handle,OCIAttrGet",
+    "-E get_oci_error,get_oci_handle,oci_buf_len,OCIAttrGet",
     "-M '$skip_regex'",
     "-k -x $oci_hdr",
 );
@@ -176,22 +191,25 @@ chdir './Oracle/OCI'
 
 mkdir 't', 02775 or croak "Failed to make 't': $!"
 	unless -d 't';
+copy '/dev/null', 'test.pl';
 
 # XXX change to use manicopy()
 if( eval { symlink("",""); 1 } ) {
-    -e basename($_) or symlink $_, basename($_)
-	    for( qw( ../../utility.c ../../utility.h ../../extra.xsh ../../XSUB.h ) );
+    -e $_ or symlink "../../$_", $_
+	    for( qw(utility.c utility.h getptrdef.h extra.xsh XSUB.h ) );
      # to have precedence over h2xs.typemap
     move( 'typemap', 'h2xs.typemap' )			unless -e 'h2xs.typemap';
     symlink '../../extra.typemap', 'typemap'		unless -e 'typemap';
-    symlink '../../../connect.t',  't/connect.t'	unless -e 't/connect.t';
+    symlink '../../../01base.t',  't/01base.t'		unless -e 't/01base.t';
+    symlink '../../../05dbi.t',   't/05dbi.t'		unless -e 't/05dbi.t';
 }
 else {	# no symlinks, gotta copy the stuff
-    -e basename($_) or copy $_, basename($_)
-	    for( qw( ../../utility.c ../../utility.h ../../extra.xsh ../../XSUB.h ) );
+    -e $_ or copy "../../$_", $_
+	    for( qw(utility.c utility.h getptrdef.h extra.xsh XSUB.h ) );
     move( 'typemap', 'h2xs.typemap' )			unless -e 'h2xs.typemap';
     copy '../../extra.typemap', 'typemap'		unless -e 'typemap';
-    copy '../../../connect.t',  't/connect.t'		unless -e 't/connect.t';
+    copy '../../../01base.t',  't/01base.t'		unless -e 't/01base.t';
+    copy '../../../05dbi.t',   't/05dbi.t'		unless -e 't/05dbi.t';
 }
 
 { # localize the file handles, %typz
@@ -211,14 +229,17 @@ else {	# no symlinks, gotta copy the stuff
 	# not used: s/^\t (\w+ \s* \*[\* ]*) \* \s* (\w+)$/\t$1 &$2/x
 
 	# change all sword returns into sword_status so typemap can check status
-	s{^sword$}{sword_status};
+	s{^sword$}{sword_status}m;
 
 	# simplify int pointer types to int refs (ub4 *foo => ub4 &foo)
 	my @out_by_ref;
-	push @out_by_ref, $2 while s{^\t ([us]b\d) \s* \* \s* (\w+)$}{\t$1 &$2}xm;
+	push @out_by_ref, $2 while s{^\t ([us]b\d|int|short|long|size_t|sword|uword|boolean) \s* \* \s* (\w+)$}{\t$1 &$2}xm;
+
+	s{^\#include.*oci.h.*}
+		{#include <oci.h>\n#include <Oracle.h>\nDBISTATE_DECLARE;\n}xm;
 
 	s{^MODULE(.*)}
-		{MODULE$1\n\nINCLUDE: extra.xsh\n\n}xmg;
+		{MODULE$1\n\nINCLUDE: extra.xsh\n}xm;
 
 	# simplify all 'void ...' types down to a plain 'void *'
 	s{^\t void \s+ \*? \s* \S .* \s+ (\w+)$}
@@ -240,7 +261,10 @@ else {	# no symlinks, gotta copy the stuff
 	m/^\t(\w+[\s\*]*)\s+[\&\s]*\w+$/
 		and $typz{ do{($a=$1)=~tr/\t //d;$a} }++ for split /\n/,$_;
 
-	$_ .= join("\n\t", "\n\tOUTPUT:", @out_by_ref)."\n\n" if @out_by_ref;
+	if (@out_by_ref) {
+	    $_ .= "\n\tOUTPUT:" unless m/OUTPUT:/m;
+	    $_ .= join("\n\t", '', @out_by_ref)."\n\n"
+	}
 
 	print $new_xs "$_\n\n";
     }
@@ -276,11 +300,14 @@ else {	# no symlinks, gotta copy the stuff
 		INC	=> "-I\$ora_arch_dir -I\$dbi_arch_dir",
 		OBJECT	=> q{\$(BASEEXT)\$(OBJ_EXT) utility.o},
 		TYPEMAPS => ['h2xs.typemap'], # ./typemap implicitly last
+		OPTIMIZE => '-g',
 		dynamic_lib => $dynamic_lib,
 	    };
 	}
 	sub MY::postamble {
-	    return "\\n" . "utility.o: utility.c\\n";
+	    return "\\n"
+		. "utility.o: utility.c\\n\\n"
+		. "OCI.c: extra.xsh\\n";
 	}
     \n};
     close $new_mk or die "Error closing Makefile.PL: $!";

@@ -300,11 +300,12 @@ See L<perlxs> and L<perlxstut> for additional details.
 use strict;
 
 
-my( $H2XS_VERSION ) = ' $Revision: 1.5 $ ' =~ /\$Revision:\s+([^\s]+)/;
+my( $H2XS_VERSION ) = ' $Revision: 1.7 $ ' =~ /\$Revision:\s+([^\s]+)/;
 my $TEMPLATE_VERSION = '0.01';
 my @ARGS = @ARGV;
 
 use Getopt::Std;
+use File::Basename;
 
 sub usage{
 	warn "@_\n" if @_;
@@ -346,8 +347,8 @@ usage if $opt_h;
 if( $opt_v ){
 	$TEMPLATE_VERSION = $opt_v;
 }
-use Carp;
-$SIG{__WARN__} = sub { print Carp::shortmess(@_) } if $opt_d;
+# handy extra debug info for warnings from within subs
+#use Carp; $SIG{__WARN__} = sub { print Carp::shortmess(@_) } if $opt_d;
 $| = 1 if $opt_d;
 
 
@@ -557,7 +558,7 @@ if( ! $opt_X ){  # use XS, unless it was disabled
     my @good_td;
     my $addflags = $opt_F || '';
 
-use File::Basename;
+    # pass -I dirs on into C::Scan
     my @dirs_h = split /,/, $opt_I||'';
     push @dirs_h, map { dirname($_) ? dirname($_) : () } @path_h;
 
@@ -660,6 +661,13 @@ use File::Basename;
     }
   }
 }
+
+# Delete constants (macros) that have the same names as functions.
+# Usually caused by #define common_name_for_sub tersename, or similar.
+# They'll never be loaded anyway... the AUTOLOAD won't fire
+# because we're generating a sub by the same name.
+delete @const_names{ @fnames_no_prefix };
+
 my @const_names = sort keys %const_names;
 
 open(PM, ">$modfname.pm") || die "Can't create $ext$modpname/$modfname.pm: $!\n";
@@ -760,6 +768,9 @@ sub AUTOLOAD {
 	no strict 'refs';
 	# Fixed between 5.005_53 and 5.005_61
 	if (\$] >= 5.00561) {
+	    # using 'sub () {}' causes prototype mismatch '' vs '()' warnings
+	    # and autoloads usually happen after the perl compiler has finished
+	    # so they can't be constant folded etc, so there's no gain.
 	    *\$AUTOLOAD = sub { \$val };
 	}
 	else {
@@ -1210,19 +1221,29 @@ $type
 $name(@argnames)
 EOP
 
+  # auto generated arguments like 'type **foo' or 'int *foo'
+  # should nearly always be 'type * &foo' and 'int &foo' respectively
   my @auto_output;
   for my $arg (0 .. $numargs - 1) {
-    my ($type, $name) = ($argtypes[$arg], $argnames[$arg]);
-    if ($type =~ m/\*.*\*\s*$/) {
-	push @auto_output, $name;
-	$type =~ s/\*([^\*]*)$/$1/;	# remove last '*'
-	$name = "&$name";
+    my ($type, $argname) = ($argtypes[$arg], $argnames[$arg]);
+
+    # normalise the type to resolve typedefs etc
+    my $norm_type = normalize_type($type, 0, 1);
+    if ($type =~ m/\*/
+	and (  $norm_type =~ m/\*.*\*$/
+	    or $norm_type =~ m/^(unsigned\s+)?(int|short|long)\s*\*$/ )
+    ) {
+	push @auto_output, $argname;
+	$type =~ s/\s*\*$//;
+	print "$name: converting '$type *$argname' to '$type &$argname' for OUTPUT\n" if $opt_d;
+	$argname = "&$argname";
     }
     print $fh <<"EOP";
-	$type	$name$argarrays[$arg]
+	$type	$argname$argarrays[$arg]
 EOP
   }
   if (@auto_output) {
+    print "adding OUTPUT clause to $name for @auto_output\n" if $opt_d;
     print $fh "\tOUTPUT:\n";
     print $fh "\t$_\n" for @auto_output;
   }
@@ -1403,8 +1424,10 @@ sub get_typemap {
 
 
 sub normalize_type {		# Second arg: do not strip const's before \*
-  my $type = shift;
-  my $do_keep_deep_const = shift;
+  my ($type, $do_keep_deep_const, $do_typedef_rex) = @_;
+
+  typedef_rex(\$type) if $do_typedef_rex;
+
   # If $do_keep_deep_const this is heuristical only
   my $keep_deep_const = ($do_keep_deep_const ? '\b(?![^(,)]*\*)' : '');
   my $ignore_mods 
@@ -1444,7 +1467,7 @@ sub assign_typemap_entry {
     $entry = assign_typemap_entry($type);
   }
   $entry ||= $typemap{$otype}
-    || (td_is_struct($type) ? "T_OPAQUE_STRUCT" : "T_PTROBJ");
+    || (td_is_struct($type) ? "T_OPAQUE_STRUCT" : ($type=~/^enum\b/) ? "T_IV" : "T_PTROBJ");
   $typemap{$otype} = $entry;
   $need_opaque = 1 if $entry eq "T_OPAQUE_STRUCT";
   return $entry;

@@ -9,6 +9,14 @@
 
 DBISTATE_DECLARE;
 
+void
+oci_util_init(dbistate)
+    dbistate_t *dbistate;
+{
+    DBIS = dbistate;
+}
+
+
 char *
 oci_status_name(sword status)
 {
@@ -30,8 +38,33 @@ oci_status_name(sword status)
 }
 
 
+I32
+oci_buf_getmaxlen(IV svptr_iv, SV* len_sv)
+{
+    STRLEN lna;
+    SV *buf_sv = (SV*)svptr_iv;
+    if (DBIS->debug)
+	warn("    oci_buf_getmaxlen of '%s'=%d", SvPV(buf_sv,lna), SvLEN(buf_sv));
+    sv_setiv(len_sv, SvLEN(buf_sv));
+    return -1;
+}
+
+I32
+oci_buf_setcurlen(IV svptr_iv, SV* len_sv)
+{
+    SV *buf_sv = (SV*)svptr_iv;
+    IV len = SvIV(len_sv);
+    if (DBIS->debug)
+	warn("    oci_buf_setcurlen to %d (max %d)", len, SvLEN(buf_sv));
+    SvGROW(buf_sv, len+1/*null*/);	/* just in case */
+    SvCUR_set(buf_sv, len);
+    *SvEND(buf_sv) = '\0';
+    return -1;
+}
+
+
 SV *
-get_oci_error(OCIError *errhp, SV *errstr_in, sword status, char *what, int debug)
+get_oci_error(OCIError *errhp, sword status, char *what, int debug)
 {
     text errbuf[1024];
     ub4 recno = 0;
@@ -39,18 +72,16 @@ get_oci_error(OCIError *errhp, SV *errstr_in, sword status, char *what, int debu
     sb4 eg_errcode = 0;
     sword eg_status;
 
-    SV *errstr = (errstr_in) ? errstr_in : sv_2mortal(newSVpv("",0));
-
-    /* set int first to ensure upgraded			*/
-    /* will reset to the correct value once we know it	*/
-    sv_setiv(errstr, status);
+    SV *errstr = newSViv(0); /* dual-valued, like $! */
+    sv_setpv(errstr,"");
 
     if (!errhp) {
 	sv_catpv(errstr, oci_status_name(status));
-	if (what) {
+	if (what && *what) {
 	    sv_catpv(errstr, " ");
 	    sv_catpv(errstr, what);
 	}
+        SvIVX(errstr) = status;
 	SvIOK_on(errstr);
 	return errstr;
     }
@@ -67,7 +98,6 @@ get_oci_error(OCIError *errhp, SV *errstr_in, sword status, char *what, int debu
 		    (eg_status==OCI_SUCCESS) ? "ok" : oci_status_name(eg_status),
 		    status, (long)eg_errcode, errbuf);
 	errcode = eg_errcode;
-        SvIVX(errstr) = errcode;
 	if (recno > 1)
 	    sv_catpv(errstr, "; ");
 	sv_catpv(errstr, (char*)errbuf);
@@ -83,7 +113,7 @@ get_oci_error(OCIError *errhp, SV *errstr_in, sword status, char *what, int debu
 	}
 	sv_catpv(errstr, ")");
     }
-warn("[[%s]]",SvPV(errstr,PL_na));
+    SvIVX(errstr) = errcode;
     SvIOK_on(errstr);
     return errstr;
 }
@@ -92,13 +122,17 @@ warn("[[%s]]",SvPV(errstr,PL_na));
 void *
 get_oci_handle(SV *h, int handle_type, int flags) {
     STRLEN lna;
-    D_imp_xxh(h);
     void *(*hook)_((imp_xxh_t *imp_xxh, int handle_type, int flags));
+    /* D_imp_xxh(h); */
+    imp_xxh_t *imp_xxh;
+    if (DBIS->debug)
+	warn("    get_oci_handle(%s,%d,%d)", SvPV(h,lna), handle_type, flags);
+    imp_xxh = (imp_xxh_t*)(DBIh_COM(h));
     if (DBIc_TYPE(imp_xxh) == DBIt_ST)
 	hook = (void*)((imp_sth_t*)imp_xxh)->get_oci_handle;
     else if (DBIc_TYPE(imp_xxh) == DBIt_DB)
 	hook = (void*)((imp_dbh_t*)imp_xxh)->get_oci_handle;
-    else croak("Can't get oci handle type %d from %s. Unsupported DBI handle type.",
+    else croak("Can't get oci handle type %d from %s. Unsupported DBI handle type",
 	    handle_type, SvPV(h,lna));
     return hook(imp_xxh, handle_type, flags);
 }
@@ -107,11 +141,13 @@ get_oci_handle(SV *h, int handle_type, int flags) {
 void *
 ora_getptr_generic(SV *arg, char *var, char *type, char *func) {
     STRLEN lna;
-    if (!DBIS) {
-	DBISTATE_INIT;
-    }
-    if (DBIS->debug)
-	warn("    %s: converting %s %s to %s", func, var, SvPV(arg,lna), type);
+    IV tmp;
+    int want_voidptr;
+    int debug = DBIS->debug;
+
+    if (debug)
+	warn("    %s %s: converting %s to %s", func, var, SvPV(arg,lna), type);
+
     if (SvROK(arg) && SvTYPE(SvRV(arg))==SVt_PVHV && SvMAGICAL(SvRV(arg))) {
 	if (strEQ(type,"OCIErrorPtr"))	return get_oci_handle(arg, OCI_HTYPE_ERROR, 0);
 	if (strEQ(type,"OCISvcCtxPtr"))	return get_oci_handle(arg, OCI_HTYPE_SVCCTX, 0);
@@ -121,11 +157,42 @@ ora_getptr_generic(SV *arg, char *var, char *type, char *func) {
 	if (strEQ(type,"OCIStmtPtr"))	return get_oci_handle(arg, OCI_HTYPE_STMT, 0);
 	croak("Can't get %s handle from %s for %s(%s)", type, SvPV(arg,lna), func, var);
     }
-    if (sv_derived_from(arg, type)) {
-	IV tmp = SvIV((SV*)SvRV(arg));
-	void *foo = INT2PTR(void*,tmp);
-	return foo;
+
+    if (SvOK(arg) && sv_derived_from(arg, type)) {
+ 	IV tmp = SvIV((SV*)SvRV(arg));
+ 	void *foo = INT2PTR(void*,tmp);
+ 	return foo;
     }
-    else
-	croak("%s is not of type %s (actually %s)", var, type, SvPV(arg,lna));
+
+    if (!SvOK(arg) || (SvNIOK(arg) && !SvIV(arg))) { /* undef and 0 (but not '') => null */
+	if (debug)
+	    warn("    %s %s: passing as null pointer", func, var);
+	return 0;	/* false == null pointer */
+    }
+
+    want_voidptr = ( *type=='v' && strEQ(type,"voidPtr") );
+    if (want_voidptr && SvPOK(arg) && !SvROK(arg) && !SvOBJECT(arg)) {
+	/* XXX HACK special case to simply passing a buffer, ie OCILobRead */
+	if (strEQ(var,"bufp") || strEQ(var,"attributep")) {
+	    if (debug)
+		warn("    %s %s: passing as pointer to buffer", func, var);
+	    return SvPV(arg,lna);
+	}
+	/* else just treat as pointer without type checking */
+	if (debug)
+	    warn("    %s %s: passing as who knows what!", func, var);
+	tmp = (SvROK(arg)) ? SvIV((SV*)SvRV(arg)) : SvIV(arg);
+	return INT2PTR(void*, tmp);
+    }
+
+    if (want_voidptr && SvIOK(arg) && !SvROK(arg) && SvOBJECT(arg)) {
+	void *ptr = INT2PTR(void*, SvIV(arg));
+	if (debug)
+	    warn("    %s %s: passing as bare pointer 0x%p/%ld", func, var, ptr, ptr);
+	return ptr;
+    }
+    if (0 && (!SvOK(arg) || (SvNIOK(arg) && SvIV(arg)==0))) {
+	return 0;
+    }
+    croak("%s is not of type %s (is actually %s)", var, type, SvPV(arg,lna));
 }
